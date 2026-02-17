@@ -1,4 +1,11 @@
 {
+  "name": "mtg-discord-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot for Magic: The Gathering players to manage their collections and decks.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "discord.js": "^14.25.1",
     "firebase": "^12.9.0",
