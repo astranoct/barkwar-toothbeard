@@ -2,7 +2,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const { parseTradelist } = require('./helperFunctions/parseTradelist.js');
-const config = require('./config.json');
+// const config = require('./config.json');
+const config = process.env.CONFIG ? JSON.parse(process.env.CONFIG) : {};
 const token = config.token;
 const { db, admin } = require('./db/users.js');
 
