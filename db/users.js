@@ -22,7 +22,7 @@ async function getUser(discordId) {
 /**
  * Create a new user profile
  */
-async function createUser(discordId, moxfieldUrl = null, tradebinderUrl = null) {
+async function createUser(discordId, collectionUrl = null, tradebinderUrl = null) {
   const userRef = db.collection("users").doc(discordId);
   const doc = await userRef.get();
   if (doc.exists) return false;
@@ -31,16 +31,41 @@ async function createUser(discordId, moxfieldUrl = null, tradebinderUrl = null) 
     highPrio: [],
     lowPrio: [],
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    moxfieldUrl,
+    collectionUrl,
     tradebinderUrl,
   });
 
   return true;
 }
 
+async function updateUserLinks(discordId, collectionUrl, tradebinderUrl) {
+  const updates = {};
+
+  if (collectionUrl) {
+    updates.collectionUrl = collectionUrl;
+  }
+
+  if (tradebinderUrl) {
+    updates.tradebinderUrl = tradebinderUrl;
+  }
+
+  if (Object.keys(updates).length === 0) return false;
+
+  await db.collection('users').doc(discordId).update(updates);
+  return true;
+}
+
+module.exports = {
+  getUser,
+  createUser,
+  updateUserLinks,
+};
+
+
 module.exports = {
   db,
   admin, // export admin so you can use FieldValue.serverTimestamp()
   getUser,
   createUser,
+  updateUserLinks,
 };
