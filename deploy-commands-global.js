@@ -3,7 +3,6 @@ const { REST, Routes } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const { token, clientId } = require('./config.json'); // make sure you have these
-
 const commands = [];
 
 // load all command files
