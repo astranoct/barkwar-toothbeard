@@ -2,69 +2,115 @@ const { EmbedBuilder } = require('discord.js');
 
 /**
  * Creates a tradelist embed for a user
- * @param {string} username - Discord username or display name
- * @param {Object} tradelist - User tradelist data
- * @param {string[]} tradelist.highPrio - High priority cards
- * @param {string[]} tradelist.lowPrio - Low priority cards
- * @param {string} deckUrl - Optional: Collection URL
- * @returns {EmbedBuilder} - A Discord embed
+ * @param {string} username
+ * @param {Object} tradelist
+ * @param {string[]} tradelist.highPrio
+ * @param {string[]} tradelist.lowPrio
+ * @param {string} deckUrl
+ * @param {string} tradebinderUrl
+ * @returns {EmbedBuilder}
  */
-function createTradelistEmbed(username, tradelist, deckUrl = null, tradebinderUrl = null) {
-  const fields = [
-    {
+function createTradelistEmbed(
+  username,
+  tradelist,
+  deckUrl = null,
+  tradebinderUrl = null
+) {
+  const fields = [];
+
+  if (tradelist.highPrio.length) {
+    fields.push({
       name: 'Needs',
-      value: tradelist.highPrio.length
-        ? tradelist.highPrio.map(card => `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`).join('\n')
-        : 'No cards',
+      value: tradelist.highPrio
+        .map(
+          card =>
+            `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`
+        )
+        .join('\n'),
       inline: true,
-    },
-  ];
+    });
+  }
 
   if (tradelist.lowPrio.length) {
     fields.push({
       name: 'Wants',
-      value: tradelist.lowPrio.map(card => `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`).join('\n'),
+      value: tradelist.lowPrio
+        .map(
+          card =>
+            `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`
+        )
+        .join('\n'),
       inline: true,
     });
   }
 
-  // Only add the blank spacer if either link will be shown
-  if (deckUrl || tradebinderUrl) {
-    fields.push({
-      name: '\u200B',
-      value: '\u200B',
-      inline: false,
-    });
+  const links = [];
+
+  if (deckUrl) {
+    links.push(`[Collection](${deckUrl})`);
   }
 
-  // Only add Collection field if deckUrl is provided
+  if (tradebinderUrl) {
+    links.push(`[Tradebinder](${tradebinderUrl})`);
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0xff69b4)
+    .setTitle(`${username}'s Trade Card`)
+    .setThumbnail('https://i.imgur.com/JEStEX3.png')
+    .setTimestamp()
+    .setFooter({
+      text: username,
+      iconURL: 'https://i.imgur.com/JEStEX3.png',
+    });
+
+  if (links.length) {
+    embed.setDescription(links.join(' • '));
+  }
+
+  if (fields.length) {
+    embed.addFields(fields);
+  }
+
+  return embed;
+}
+
+function createTradelinksEmbed(
+  username,
+  deckUrl = null,
+  tradebinderUrl = null
+) {
+  const fields = [];
+
   if (deckUrl) {
     fields.push({
-      name: '',
-      value: `[Collection](${deckUrl})`,
+      name: 'Collection',
+      value: `[View Collection](${deckUrl})`,
       inline: true,
     });
   }
 
-  // Only add Tradebinder field if tradebinderUrl is provided
   if (tradebinderUrl) {
     fields.push({
-      name: '',
-      value: `[Tradebinder](${tradebinderUrl})`,
+      name: 'Tradebinder',
+      value: `[View Tradebinder](${tradebinderUrl})`,
       inline: true,
     });
   }
 
   return new EmbedBuilder()
-    .setColor(0xFF69B4)
-    .setTitle(`${username}'s Trade Card`)
-    .setURL(deckUrl || 'https://moxfield.com/')
+    .setColor(0xff69b4)
+    .setTitle(`${username}'s Trade Links`)
     .setThumbnail('https://i.imgur.com/JEStEX3.png')
     .addFields(fields)
     .setTimestamp()
-    .setFooter({ text: username, iconURL: 'https://i.imgur.com/JEStEX3.png' });
+    .setFooter({
+      text: username,
+      iconURL: 'https://i.imgur.com/JEStEX3.png',
+    });
 }
 
 module.exports = {
   createTradelistEmbed,
+  createTradelinksEmbed,
 };
