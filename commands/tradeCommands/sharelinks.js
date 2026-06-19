@@ -34,7 +34,6 @@ module.exports = {
       // Build the embed using their data
       const embed = createTradelinksEmbed(
         username,
-        userData,
         userData.collectionUrl || null,
         userData.tradebinderUrl || null
       );
