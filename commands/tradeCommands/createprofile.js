@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUser, createUser } = require('../../db/users.js');
+const { validateUrl } = require('../../helperFunctions/validateUrl.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,38 +19,41 @@ module.exports = {
 
   async execute(interaction) {
     const discordId = interaction.user.id;
-    const collectionUrl = interaction.options.getString('collection');
-    const tradebinderUrl = interaction.options.getString('tradebinder');
+    const rawCollection = interaction.options.getString('collection');
+    const rawTradebinder = interaction.options.getString('tradebinder');
+    const collectionUrl = validateUrl(rawCollection);
+    const tradebinderUrl = validateUrl(rawTradebinder);
 
-    try {
-      const existingUser = await getUser(discordId);
-
-      if (existingUser) {
-        await interaction.reply({
-          content: 'ℹ️ You already have a profile. Use /tradelist to view it or /updatelist to update your seeking list.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      const created = await createUser(discordId, collectionUrl, tradebinderUrl);
-
-      if (created) {
-        await interaction.reply({
-          content: '✅ Your profile has been created! You can now use /updatelist to upload your seeking list and /tradelist to share it with others.',
-          flags: MessageFlags.Ephemeral,
-        });
-      } else {
-        // This case should rarely happen
-        await interaction.reply({
-          content: '⚠️ Could not create your profile. Please try again.',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-    } catch (err) {
-      console.error(err);
+    if ((rawCollection && !collectionUrl) || (rawTradebinder && !tradebinderUrl)) {
       await interaction.reply({
-        content: '❌ There was an error creating your profile. Please try again later.',
+        content: '⚠️ Links must be valid http(s) URLs, e.g. https://example.com/my-collection.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // Errors are logged and reported to the user by index.js
+    const existingUser = await getUser(discordId);
+
+    if (existingUser) {
+      await interaction.reply({
+        content: 'ℹ️ You already have a profile. Use /tradelist to view it or /addcards to add cards to it.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const created = await createUser(discordId, collectionUrl, tradebinderUrl);
+
+    if (created) {
+      await interaction.reply({
+        content: '✅ Your profile has been created! Use /addcards to build your list of wanted cards and /tradelist to share it with others.',
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      // Only happens if two requests race to create the same profile
+      await interaction.reply({
+        content: 'ℹ️ You already have a profile.',
         flags: MessageFlags.Ephemeral,
       });
     }

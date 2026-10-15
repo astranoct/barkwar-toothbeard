@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUser } = require('../../db/users.js');
 const { createTradelinksEmbed } = require('../../helperFunctions/formatEmbed.js');
 
@@ -26,7 +26,7 @@ module.exports = {
       if (!userData) {
         await interaction.reply({
           content: `❌ ${targetUser.id === interaction.user.id ? 'You do' : `${username} does`} not have a profile yet.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -40,11 +40,8 @@ module.exports = {
 
       await interaction.reply({ embeds: [embed] });
     } catch (err) {
-      console.error(err);
-      await interaction.reply({
-        content: '❌ There was an error fetching the trade links. Please try again later.',
-        ephemeral: true,
-      });
+      // Let index.js report the error to the user
+      throw err;
     }
   },
 };

@@ -1,0 +1,5 @@
+{
+  "token": "your-discord-bot-token",
+  "clientId": "your-discord-application-id",
+  "guildId": "a-test-server-id (only used by deploy-commands.js)"
+}

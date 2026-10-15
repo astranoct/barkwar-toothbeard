@@ -1,49 +1,52 @@
 const { EmbedBuilder } = require('discord.js');
 
+const MAX_DESCRIPTION_LENGTH = 4096; // Discord embed description limit
+
+/**
+ * Formats cards as Scryfall links, one per line, truncated to fit in `limit` characters.
+ * @param {string[]} cards
+ * @param {number} limit
+ * @returns {string}
+ */
+function formatCardList(cards, limit = MAX_DESCRIPTION_LENGTH) {
+  const lines = [];
+  let length = 0;
+
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    // Escape characters that would break the markdown link text
+    const label = card.replace(/([\[\]\\*_`~|>])/g, '\\$1');
+    // encodeURIComponent leaves ( and ) alone, which would end the link early
+    const query = encodeURIComponent(`!"${card}"`).replace(/\(/g, '%28').replace(/\)/g, '%29');
+    const line = `[${label}](https://scryfall.com/search?q=${query})`;
+
+    const remaining = cards.length - i;
+    const moreNote = `\n…and ${remaining} more`;
+    if (length + line.length + 1 + moreNote.length > limit) {
+      lines.push(`…and ${remaining} more`);
+      break;
+    }
+    lines.push(line);
+    length += line.length + 1;
+  }
+
+  return lines.join('\n');
+}
+
 /**
  * Creates a tradelist embed for a user
  * @param {string} username
- * @param {Object} tradelist
- * @param {string[]} tradelist.highPrio
- * @param {string[]} tradelist.lowPrio
+ * @param {string[]} cards Cards the user is looking for
  * @param {string} deckUrl
  * @param {string} tradebinderUrl
  * @returns {EmbedBuilder}
  */
 function createTradelistEmbed(
   username,
-  tradelist,
+  cards,
   deckUrl = null,
   tradebinderUrl = null
 ) {
-  const fields = [];
-
-  if (tradelist.highPrio.length) {
-    fields.push({
-      name: 'Needs',
-      value: tradelist.highPrio
-        .map(
-          card =>
-            `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`
-        )
-        .join('\n'),
-      inline: true,
-    });
-  }
-
-  if (tradelist.lowPrio.length) {
-    fields.push({
-      name: 'Wants',
-      value: tradelist.lowPrio
-        .map(
-          card =>
-            `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`
-        )
-        .join('\n'),
-      inline: true,
-    });
-  }
-
   const links = [];
 
   if (deckUrl) {
@@ -56,8 +59,9 @@ function createTradelistEmbed(
 
   const embed = new EmbedBuilder()
     .setColor(0xff69b4)
-    .setTitle(`${username}'s Trade Card`)
+    .setTitle(`${username} is looking for (${cards.length})`)
     .setThumbnail('https://i.imgur.com/JEStEX3.png')
+    .setDescription(cards.length ? formatCardList(cards) : 'No cards listed yet. Use /addcards to add some.')
     .setTimestamp()
     .setFooter({
       text: username,
@@ -65,11 +69,7 @@ function createTradelistEmbed(
     });
 
   if (links.length) {
-    embed.setDescription(links.join(' • '));
-  }
-
-  if (fields.length) {
-    embed.addFields(fields);
+    embed.addFields({ name: 'Links', value: links.join(' • ') });
   }
 
   return embed;
@@ -98,16 +98,23 @@ function createTradelinksEmbed(
     });
   }
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0xff69b4)
     .setTitle(`${username}'s Trade Links`)
     .setThumbnail('https://i.imgur.com/JEStEX3.png')
-    .addFields(fields)
     .setTimestamp()
     .setFooter({
       text: username,
       iconURL: 'https://i.imgur.com/JEStEX3.png',
     });
+
+  if (fields.length) {
+    embed.addFields(fields);
+  } else {
+    embed.setDescription('No links have been set yet. Use /updatelinks to add some.');
+  }
+
+  return embed;
 }
 
 module.exports = {

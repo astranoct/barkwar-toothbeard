@@ -1,18 +1,15 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
-const { parseTradelist } = require('./helperFunctions/parseTradelist.js');
+const { createRateLimiter } = require('./helperFunctions/rateLimiter.js');
 // const config = require('./config.json');
 const config = process.env.CONFIG ? JSON.parse(process.env.CONFIG) : {};
 const token = config.token;
-const { db, admin } = require('./db/users.js');
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+if (!token) {
+	console.error('Missing Discord bot token. Set the CONFIG environment variable to JSON like {"token": "..."}.');
+	process.exit(1);
 }
-
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -40,40 +37,58 @@ for (const folder of commandFolders) {
 	}
 }
 
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isModalSubmit()) return;
+/**
+ * Replies to an interaction, or follows up if it was already replied to / deferred.
+ */
+async function safeReply(interaction, content) {
+	const payload = { content, flags: MessageFlags.Ephemeral };
+	try {
+		if (interaction.replied || interaction.deferred) {
+			await interaction.followUp(payload);
+		} else {
+			await interaction.reply(payload);
+		}
+	} catch (err) {
+		console.error('Failed to send error reply:', err);
+	}
+}
 
-  if (interaction.customId === 'updatelistModal') {
-    const discordId = interaction.user.id;
-    const listInput = interaction.fields.getTextInputValue('listInput');
-
-    try {
-      const { highPrio, lowPrio } = parseTradelist(listInput);
-
-      // Use db from users.js
-      const userRef = db.collection('users').doc(discordId);
-		await userRef.update({
-		highPrio,
-		lowPrio,
-		updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-		});
-
-      await interaction.reply({
-        content: `✅ Your tradelist has been updated! High: ${highPrio.length}, Low: ${lowPrio.length} cards.`,
-		flags: MessageFlags.Ephemeral,
-      });
-    } catch (err) {
-      console.error(err);
-      await interaction.reply({
-        content: '❌ There was an error updating your tradelist. Please check your format and try again.',
-		flags: MessageFlags.Ephemeral,
-      });
-    }
-  }
-});
-
+// 5 commands per 10 seconds per user. Commands hit Firestore and Scryfall, so don't let one user spam them.
+const checkRateLimit = createRateLimiter({ max: 5, windowMs: 10_000 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+	if (interaction.isModalSubmit() || interaction.isChatInputCommand()) {
+		const retryAfter = checkRateLimit(interaction.user.id);
+		if (retryAfter > 0) {
+			await safeReply(interaction, `⏳ Slow down a little! Try again in ${retryAfter} second${retryAfter === 1 ? '' : 's'}.`);
+			return;
+		}
+	}
+
+	// Modal submits go to the command that owns the modal (its `modalId` / `modalSubmit`)
+	if (interaction.isModalSubmit()) {
+		const owner = client.commands.find((cmd) => cmd.modalId === interaction.customId);
+		if (!owner) return;
+		try {
+			await owner.modalSubmit(interaction);
+		} catch (error) {
+			console.error(error);
+			await safeReply(interaction, '❌ Something went wrong saving that. Please try again.');
+		}
+		return;
+	}
+
+	if (interaction.isAutocomplete()) {
+		const command = client.commands.get(interaction.commandName);
+		if (!command || !command.autocomplete) return;
+		try {
+			await command.autocomplete(interaction);
+		} catch (error) {
+			console.error(error);
+		}
+		return;
+	}
+
 	if (!interaction.isChatInputCommand()) return;
 	const command = interaction.client.commands.get(interaction.commandName);
 
@@ -86,17 +101,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		await command.execute(interaction);
 	} catch (error) {
 		console.error(error);
-		if (interaction.replied || interaction.deferred) {
-			await interaction.followUp({
-				content: 'There was an error while executing this command!',
-				flags: MessageFlags.Ephemeral,
-			});
-		} else {
-			await interaction.reply({
-				content: 'There was an error while executing this command!',
-				flags: MessageFlags.Ephemeral,
-			});
-		}
+		await safeReply(interaction, 'There was an error while executing this command!');
 	}
 });
 
