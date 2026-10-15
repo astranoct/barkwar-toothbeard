@@ -127,6 +127,38 @@ async function createUser(discordId, collectionUrl = null, tradebinderUrl = null
   });
 }
 
+const recordedThisRun = new Set();
+
+/**
+ * Remembers which server a user used the bot in, plus their display info, so the website can
+ * show each server's members. Does nothing if the user has no profile yet.
+ * Writes at most once per user per server per bot run.
+ * @param {{id: string, username: string, displayAvatarURL: (options?: object) => string}} user
+ * @param {{id: string, name: string, iconURL: (options?: object) => string|null}|null} guild
+ */
+async function recordActivity(user, guild) {
+  if (!guild) return; // used in a DM
+  const key = `${user.id}:${guild.id}`;
+  if (recordedThisRun.has(key)) return;
+
+  const userRef = db.collection('users').doc(user.id);
+  try {
+    await userRef.update({
+      guilds: admin.firestore.FieldValue.arrayUnion(guild.id),
+      username: user.username,
+      avatarUrl: user.displayAvatarURL({ extension: 'png', size: 128 }),
+    });
+    await db.collection('guilds').doc(guild.id).set(
+      { name: guild.name, iconUrl: guild.iconURL({ extension: 'png', size: 128 }) || null },
+      { merge: true }
+    );
+    recordedThisRun.add(key);
+  } catch (err) {
+    // 5 = NOT_FOUND: the user has no profile yet, so there is nothing to attach the server to
+    if (err.code !== 5) console.error('Failed to record server activity:', err);
+  }
+}
+
 async function updateUserLinks(discordId, collectionUrl, tradebinderUrl) {
   const updates = {};
 
@@ -151,6 +183,7 @@ module.exports = {
   getUser,
   createUser,
   updateUserLinks,
+  recordActivity,
   setCards,
   addCards,
   removeCard,
