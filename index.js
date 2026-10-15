@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const { createRateLimiter } = require('./helperFunctions/rateLimiter.js');
+const { recordActivity } = require('./db/users.js');
 // const config = require('./config.json');
 const config = process.env.CONFIG ? JSON.parse(process.env.CONFIG) : {};
 const token = config.token;
@@ -10,6 +11,8 @@ if (!token) {
 	console.error('Missing Discord bot token. Set the CONFIG environment variable to JSON like {"token": "..."}.');
 	process.exit(1);
 }
+
+require('./db/users.js').getDb(); // fail now, not on the first command, if the Firebase key is missing
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -71,6 +74,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		if (!owner) return;
 		try {
 			await owner.modalSubmit(interaction);
+			recordActivity(interaction.user, interaction.guild);
 		} catch (error) {
 			console.error(error);
 			await safeReply(interaction, '❌ Something went wrong saving that. Please try again.');
@@ -99,6 +103,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 	try {
 		await command.execute(interaction);
+		// After the command, so a brand-new /createprofile profile exists to attach the server to.
+		// Not awaited: the user already has their reply, and it handles its own errors.
+		recordActivity(interaction.user, interaction.guild);
 	} catch (error) {
 		console.error(error);
 		await safeReply(interaction, 'There was an error while executing this command!');
