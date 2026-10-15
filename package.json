@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "A Discord bot for Magic: The Gathering players to manage their collections and decks.",
   "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "discord.js": "^14.25.1",

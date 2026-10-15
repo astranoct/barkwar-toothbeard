@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
+const { createRateLimiter } = require('./helperFunctions/rateLimiter.js');
 // const config = require('./config.json');
 const config = process.env.CONFIG ? JSON.parse(process.env.CONFIG) : {};
 const token = config.token;
@@ -52,7 +53,18 @@ async function safeReply(interaction, content) {
 	}
 }
 
+// 5 commands per 10 seconds per user. Commands hit Firestore and Scryfall, so don't let one user spam them.
+const checkRateLimit = createRateLimiter({ max: 5, windowMs: 10_000 });
+
 client.on(Events.InteractionCreate, async (interaction) => {
+	if (interaction.isModalSubmit() || interaction.isChatInputCommand()) {
+		const retryAfter = checkRateLimit(interaction.user.id);
+		if (retryAfter > 0) {
+			await safeReply(interaction, `⏳ Slow down a little! Try again in ${retryAfter} second${retryAfter === 1 ? '' : 's'}.`);
+			return;
+		}
+	}
+
 	// Modal submits go to the command that owns the modal (its `modalId` / `modalSubmit`)
 	if (interaction.isModalSubmit()) {
 		const owner = client.commands.find((cmd) => cmd.modalId === interaction.customId);
