@@ -1,4 +1,4 @@
-﻿const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUser, createUser } = require('../../db/users.js');
 const { validateUrl } = require('../../helperFunctions/validateUrl.js');
 
@@ -26,40 +26,36 @@ module.exports = {
 
     if ((rawCollection && !collectionUrl) || (rawTradebinder && !tradebinderUrl)) {
       await interaction.reply({
-        content: 'âš ï¸ Links must be valid http(s) URLs, e.g. https://example.com/my-collection.',
+        content: '⚠️ Links must be valid http(s) URLs, e.g. https://example.com/my-collection.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    try {
-      const existingUser = await getUser(discordId);
+    // Errors are logged and reported to the user by index.js
+    const existingUser = await getUser(discordId);
 
-      if (existingUser) {
-        await interaction.reply({
-          content: 'â„¹ï¸ You already have a profile. Use /tradelist to view it or /addcards to add cards to it.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
+    if (existingUser) {
+      await interaction.reply({
+        content: 'ℹ️ You already have a profile. Use /tradelist to view it or /addcards to add cards to it.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-      const created = await createUser(discordId, collectionUrl, tradebinderUrl);
+    const created = await createUser(discordId, collectionUrl, tradebinderUrl);
 
-      if (created) {
-        await interaction.reply({
-          content: 'âœ… Your profile has been created! Use /addcards to build your list of wanted cards and /tradelist to share it with others.',
-          flags: MessageFlags.Ephemeral,
-        });
-      } else {
-        // This case should rarely happen
-        await interaction.reply({
-          content: 'âš ï¸ Could not create your profile. Please try again.',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-    } catch (err) {
-      // Let index.js log and report the error to the user
-      throw err;
+    if (created) {
+      await interaction.reply({
+        content: '✅ Your profile has been created! Use /addcards to build your list of wanted cards and /tradelist to share it with others.',
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      // Only happens if two requests race to create the same profile
+      await interaction.reply({
+        content: 'ℹ️ You already have a profile.',
+        flags: MessageFlags.Ephemeral,
+      });
     }
   },
 };

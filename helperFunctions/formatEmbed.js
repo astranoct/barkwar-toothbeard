@@ -1,4 +1,4 @@
-﻿const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 
 const MAX_DESCRIPTION_LENGTH = 4096; // Discord embed description limit
 
