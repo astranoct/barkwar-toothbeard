@@ -91,7 +91,44 @@ function describeInvalid(invalid) {
     .join('\n');
 }
 
+const artCache = new Map(); // card name -> image url, or null if there isn't one
+const ART_TIMEOUT_MS = 2000; // this runs while someone waits for a reply, so don't let it drag
+
+/**
+ * Cropped artwork for a card, used as the small picture on the tradelist embed.
+ * Never throws: returns null if Scryfall is slow, down, or doesn't know the card.
+ * Results (including "none") are remembered until the bot restarts.
+ * @param {string} name
+ * @returns {Promise<string|null>}
+ */
+async function getCardArt(name) {
+  if (artCache.has(name)) return artCache.get(name);
+
+  let url = null;
+  try {
+    // Full names of double-faced cards ("Fire // Ice") only match on the front face
+    const res = await fetch(`${API}/cards/named?exact=${encodeURIComponent(name.split(' // ')[0])}`, {
+      headers: HEADERS,
+      signal: AbortSignal.timeout(ART_TIMEOUT_MS),
+    });
+    if (res.ok) {
+      const card = await res.json();
+      url = card.image_uris?.art_crop ?? card.card_faces?.[0]?.image_uris?.art_crop ?? null;
+    } else if (res.status === 404) {
+      url = null; // not a real card: remember that too
+    } else {
+      return null; // a temporary problem: don't remember it
+    }
+  } catch {
+    return null; // timeout or network error: don't remember it
+  }
+
+  artCache.set(name, url);
+  return url;
+}
+
 module.exports = {
   verifyCards,
   describeInvalid,
+  getCardArt,
 };

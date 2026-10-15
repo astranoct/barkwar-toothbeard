@@ -34,6 +34,7 @@ You need [Node.js](https://nodejs.org) 20 or newer.
 |---|---|
 | `CONFIG` | JSON like `{"token": "your-discord-bot-token"}` |
 | `SERVICE_ACCOUNT_KEY` | The whole Firebase service account JSON, as one line |
+| `WEB_URL` | Optional. The companion website's address (e.g. `https://your-site.herokuapp.com`). When set, `/tradelist` and `/tradelinks` get a "View on website" button, and long lists point people there. |
 
 PowerShell example for running locally:
 

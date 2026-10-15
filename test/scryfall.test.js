@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { verifyCards, describeInvalid } = require('../helperFunctions/scryfall.js');
+const { verifyCards, describeInvalid, getCardArt } = require('../helperFunctions/scryfall.js');
 
 // Replaces the global fetch with a fake Scryfall for the duration of a test.
 function mockScryfall(t, handler) {
@@ -71,4 +71,37 @@ test('accepts names unverified when Scryfall is unreachable', async (t) => {
 test('describeInvalid lists suggestions', () => {
   const text = describeInvalid([{ name: 'a', suggestion: 'B' }, { name: 'c', suggestion: null }]);
   assert.equal(text, '• a — did you mean **B**?\n• c');
+});
+
+test('getCardArt returns the cropped art and remembers it', async (t) => {
+  const calls = mockScryfall(t, () => ({ body: { image_uris: { art_crop: 'https://img/sol-ring.jpg' } } }));
+
+  assert.equal(await getCardArt('Sol Ring'), 'https://img/sol-ring.jpg');
+  assert.equal(await getCardArt('Sol Ring'), 'https://img/sol-ring.jpg');
+  assert.equal(calls.length, 1); // the second call came from memory
+});
+
+test('getCardArt uses the front face of double-faced cards', async (t) => {
+  const calls = mockScryfall(t, () => ({
+    body: { card_faces: [{ image_uris: { art_crop: 'https://img/delver.jpg' } }, { image_uris: { art_crop: 'https://img/other.jpg' } }] },
+  }));
+
+  assert.equal(await getCardArt('Delver of Secrets // Insectile Aberration'), 'https://img/delver.jpg');
+  assert.match(calls[0].url, /exact=Delver%20of%20Secrets$/);
+});
+
+test('getCardArt gives null for unknown cards and remembers that', async (t) => {
+  const calls = mockScryfall(t, () => ({ status: 404, body: { object: 'error' } }));
+
+  assert.equal(await getCardArt('Not A Real Card'), null);
+  assert.equal(await getCardArt('Not A Real Card'), null);
+  assert.equal(calls.length, 1);
+});
+
+test('getCardArt gives null on errors but does not remember them', async (t) => {
+  const calls = mockScryfall(t, () => ({ status: 500, body: {} }));
+
+  assert.equal(await getCardArt('Flaky Card'), null);
+  assert.equal(await getCardArt('Flaky Card'), null);
+  assert.equal(calls.length, 2); // tried again the second time
 });
