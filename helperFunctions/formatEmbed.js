@@ -1,5 +1,37 @@
 const { EmbedBuilder } = require('discord.js');
 
+const MAX_FIELD_LENGTH = 1024; // Discord embed field value limit
+
+/**
+ * Formats cards as Scryfall links, one per line, truncated to fit in an embed field.
+ * @param {string[]} cards
+ * @returns {string}
+ */
+function formatCardList(cards) {
+  const lines = [];
+  let length = 0;
+
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    // Escape characters that would break the markdown link text
+    const label = card.replace(/([\[\]\\*_`~|>])/g, '\\$1');
+    // encodeURIComponent leaves ( and ) alone, which would end the link early
+    const query = encodeURIComponent(`!"${card}"`).replace(/\(/g, '%28').replace(/\)/g, '%29');
+    const line = `[${label}](https://scryfall.com/search?q=${query})`;
+
+    const remaining = cards.length - i;
+    const moreNote = `\n…and ${remaining} more`;
+    if (length + line.length + 1 + moreNote.length > MAX_FIELD_LENGTH) {
+      lines.push(`…and ${remaining} more`);
+      break;
+    }
+    lines.push(line);
+    length += line.length + 1;
+  }
+
+  return lines.join('\n');
+}
+
 /**
  * Creates a tradelist embed for a user
  * @param {string} username
@@ -17,29 +49,21 @@ function createTradelistEmbed(
   tradebinderUrl = null
 ) {
   const fields = [];
+  const highPrio = tradelist.highPrio || [];
+  const lowPrio = tradelist.lowPrio || [];
 
-  if (tradelist.highPrio.length) {
+  if (highPrio.length) {
     fields.push({
       name: 'Needs',
-      value: tradelist.highPrio
-        .map(
-          card =>
-            `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`
-        )
-        .join('\n'),
+      value: formatCardList(highPrio),
       inline: true,
     });
   }
 
-  if (tradelist.lowPrio.length) {
+  if (lowPrio.length) {
     fields.push({
       name: 'Wants',
-      value: tradelist.lowPrio
-        .map(
-          card =>
-            `[${card}](https://scryfall.com/search?q=${encodeURIComponent(card)})`
-        )
-        .join('\n'),
+      value: formatCardList(lowPrio),
       inline: true,
     });
   }
@@ -98,16 +122,23 @@ function createTradelinksEmbed(
     });
   }
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0xff69b4)
     .setTitle(`${username}'s Trade Links`)
     .setThumbnail('https://i.imgur.com/JEStEX3.png')
-    .addFields(fields)
     .setTimestamp()
     .setFooter({
       text: username,
       iconURL: 'https://i.imgur.com/JEStEX3.png',
     });
+
+  if (fields.length) {
+    embed.addFields(fields);
+  } else {
+    embed.setDescription('No links have been set yet. Use /updatelinks to add some.');
+  }
+
+  return embed;
 }
 
 module.exports = {

@@ -1,6 +1,5 @@
-const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { getUser } = require('../../db/users.js');
-const admin = require('firebase-admin');
 
 module.exports = {
   data: new SlashCommandBuilder()

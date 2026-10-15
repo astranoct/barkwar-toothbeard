@@ -2,6 +2,10 @@ const admin = require("firebase-admin");
 // const serviceAccount = require("../serviceAccountKey.json");
 const serviceAccount = process.env.SERVICE_ACCOUNT_KEY ? JSON.parse(process.env.SERVICE_ACCOUNT_KEY) : null;
 
+if (!serviceAccount) {
+  throw new Error('Missing SERVICE_ACCOUNT_KEY environment variable (Firebase service account JSON).');
+}
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -20,22 +24,26 @@ async function getUser(discordId) {
 }
 
 /**
- * Create a new user profile
+ * Create a new user profile.
+ * Uses a transaction so two simultaneous calls can't both create the profile.
+ * @returns {Promise<boolean>} true if created, false if the profile already existed.
  */
 async function createUser(discordId, collectionUrl = null, tradebinderUrl = null) {
   const userRef = db.collection("users").doc(discordId);
-  const doc = await userRef.get();
-  if (doc.exists) return false;
 
-  await userRef.set({
-    highPrio: [],
-    lowPrio: [],
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    collectionUrl,
-    tradebinderUrl,
+  return db.runTransaction(async (t) => {
+    const doc = await t.get(userRef);
+    if (doc.exists) return false;
+
+    t.set(userRef, {
+      highPrio: [],
+      lowPrio: [],
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      collectionUrl,
+      tradebinderUrl,
+    });
+    return true;
   });
-
-  return true;
 }
 
 async function updateUserLinks(discordId, collectionUrl, tradebinderUrl) {
@@ -54,13 +62,6 @@ async function updateUserLinks(discordId, collectionUrl, tradebinderUrl) {
   await db.collection('users').doc(discordId).update(updates);
   return true;
 }
-
-module.exports = {
-  getUser,
-  createUser,
-  updateUserLinks,
-};
-
 
 module.exports = {
   db,

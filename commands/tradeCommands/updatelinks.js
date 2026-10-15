@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUser, updateUserLinks } = require('../../db/users.js');
+const { validateUrl } = require('../../helperFunctions/validateUrl.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,12 +19,21 @@ module.exports = {
 
   async execute(interaction) {
     const discordId = interaction.user.id;
-    const collectionUrl = interaction.options.getString('collection');
-    const tradebinderUrl = interaction.options.getString('tradebinder');
+    const rawCollection = interaction.options.getString('collection');
+    const rawTradebinder = interaction.options.getString('tradebinder');
+    const collectionUrl = validateUrl(rawCollection);
+    const tradebinderUrl = validateUrl(rawTradebinder);
 
-    if (!collectionUrl && !tradebinderUrl) {
+    if (!rawCollection && !rawTradebinder) {
       return interaction.reply({
         content: '⚠️ You must provide at least one link to update.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    if ((rawCollection && !collectionUrl) || (rawTradebinder && !tradebinderUrl)) {
+      return interaction.reply({
+        content: '⚠️ Links must be valid http(s) URLs, e.g. https://example.com/my-collection.',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -46,11 +56,8 @@ module.exports = {
       });
 
     } catch (err) {
-      console.error(err);
-      await interaction.reply({
-        content: '❌ There was an error updating your links. Please try again later.',
-        flags: MessageFlags.Ephemeral,
-      });
+      // Let index.js log and report the error to the user
+      throw err;
     }
   },
 };

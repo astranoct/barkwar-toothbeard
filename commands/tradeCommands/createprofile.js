@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUser, createUser } = require('../../db/users.js');
+const { validateUrl } = require('../../helperFunctions/validateUrl.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,8 +19,18 @@ module.exports = {
 
   async execute(interaction) {
     const discordId = interaction.user.id;
-    const collectionUrl = interaction.options.getString('collection');
-    const tradebinderUrl = interaction.options.getString('tradebinder');
+    const rawCollection = interaction.options.getString('collection');
+    const rawTradebinder = interaction.options.getString('tradebinder');
+    const collectionUrl = validateUrl(rawCollection);
+    const tradebinderUrl = validateUrl(rawTradebinder);
+
+    if ((rawCollection && !collectionUrl) || (rawTradebinder && !tradebinderUrl)) {
+      await interaction.reply({
+        content: '⚠️ Links must be valid http(s) URLs, e.g. https://example.com/my-collection.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     try {
       const existingUser = await getUser(discordId);
@@ -47,11 +58,8 @@ module.exports = {
         });
       }
     } catch (err) {
-      console.error(err);
-      await interaction.reply({
-        content: '❌ There was an error creating your profile. Please try again later.',
-        flags: MessageFlags.Ephemeral,
-      });
+      // Let index.js log and report the error to the user
+      throw err;
     }
   },
 };

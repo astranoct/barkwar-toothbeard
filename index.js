@@ -5,14 +5,13 @@ const { parseTradelist } = require('./helperFunctions/parseTradelist.js');
 // const config = require('./config.json');
 const config = process.env.CONFIG ? JSON.parse(process.env.CONFIG) : {};
 const token = config.token;
+// db/users.js initializes firebase-admin, so it must not be initialized again here.
 const { db, admin } = require('./db/users.js');
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+if (!token) {
+	console.error('Missing Discord bot token. Set the CONFIG environment variable to JSON like {"token": "..."}.');
+	process.exit(1);
 }
-
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -40,40 +39,53 @@ for (const folder of commandFolders) {
 	}
 }
 
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isModalSubmit()) return;
+/**
+ * Replies to an interaction, or follows up if it was already replied to / deferred.
+ */
+async function safeReply(interaction, content) {
+	const payload = { content, flags: MessageFlags.Ephemeral };
+	try {
+		if (interaction.replied || interaction.deferred) {
+			await interaction.followUp(payload);
+		} else {
+			await interaction.reply(payload);
+		}
+	} catch (err) {
+		console.error('Failed to send error reply:', err);
+	}
+}
 
-  if (interaction.customId === 'updatelistModal') {
-    const discordId = interaction.user.id;
-    const listInput = interaction.fields.getTextInputValue('listInput');
+async function handleUpdatelistModal(interaction) {
+	const discordId = interaction.user.id;
+	const listInput = interaction.fields.getTextInputValue('listInput');
 
-    try {
-      const { highPrio, lowPrio } = parseTradelist(listInput);
+	try {
+		const { highPrio, lowPrio } = parseTradelist(listInput);
 
-      // Use db from users.js
-      const userRef = db.collection('users').doc(discordId);
-		await userRef.update({
-		highPrio,
-		lowPrio,
-		updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+		await db.collection('users').doc(discordId).update({
+			highPrio,
+			lowPrio,
+			updatedAt: admin.firestore.FieldValue.serverTimestamp(),
 		});
 
-      await interaction.reply({
-        content: `✅ Your tradelist has been updated! High: ${highPrio.length}, Low: ${lowPrio.length} cards.`,
-		flags: MessageFlags.Ephemeral,
-      });
-    } catch (err) {
-      console.error(err);
-      await interaction.reply({
-        content: '❌ There was an error updating your tradelist. Please check your format and try again.',
-		flags: MessageFlags.Ephemeral,
-      });
-    }
-  }
-});
-
+		await interaction.reply({
+			content: `✅ Your tradelist has been updated! Needs: ${highPrio.length}, Wants: ${lowPrio.length} cards.`,
+			flags: MessageFlags.Ephemeral,
+		});
+	} catch (err) {
+		console.error(err);
+		await safeReply(interaction, '❌ There was an error updating your tradelist. Please check your format and try again.');
+	}
+}
 
 client.on(Events.InteractionCreate, async (interaction) => {
+	if (interaction.isModalSubmit()) {
+		if (interaction.customId === 'updatelistModal') {
+			await handleUpdatelistModal(interaction);
+		}
+		return;
+	}
+
 	if (!interaction.isChatInputCommand()) return;
 	const command = interaction.client.commands.get(interaction.commandName);
 
@@ -86,17 +98,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		await command.execute(interaction);
 	} catch (error) {
 		console.error(error);
-		if (interaction.replied || interaction.deferred) {
-			await interaction.followUp({
-				content: 'There was an error while executing this command!',
-				flags: MessageFlags.Ephemeral,
-			});
-		} else {
-			await interaction.reply({
-				content: 'There was an error while executing this command!',
-				flags: MessageFlags.Ephemeral,
-			});
-		}
+		await safeReply(interaction, 'There was an error while executing this command!');
 	}
 });
 
