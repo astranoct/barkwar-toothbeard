@@ -11,6 +11,8 @@ if (!token) {
 	process.exit(1);
 }
 
+require('./db/users.js').getDb(); // fail now, not on the first command, if the Firebase key is missing
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once(Events.ClientReady, (readyClient) => {

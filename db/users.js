@@ -1,18 +1,33 @@
 const admin = require("firebase-admin");
 // const serviceAccount = require("../serviceAccountKey.json");
-const serviceAccount = process.env.SERVICE_ACCOUNT_KEY ? JSON.parse(process.env.SERVICE_ACCOUNT_KEY) : null;
 
-if (!serviceAccount) {
-  throw new Error('Missing SERVICE_ACCOUNT_KEY environment variable (Firebase service account JSON).');
+let firestore = null;
+
+/**
+ * Connects to Firestore on first use rather than when this file is loaded, so scripts that only
+ * load the command definitions (like deploy-commands.js) don't need the Firebase key.
+ * index.js calls this at startup so a missing key fails immediately.
+ */
+function getDb() {
+  if (!firestore) {
+    const serviceAccount = process.env.SERVICE_ACCOUNT_KEY ? JSON.parse(process.env.SERVICE_ACCOUNT_KEY) : null;
+    if (!serviceAccount) {
+      throw new Error('Missing SERVICE_ACCOUNT_KEY environment variable (Firebase service account JSON).');
+    }
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+    firestore = admin.firestore();
+  }
+  return firestore;
 }
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
-
-const db = admin.firestore();
+const db = {
+  collection: (...args) => getDb().collection(...args),
+  runTransaction: (...args) => getDb().runTransaction(...args),
+};
 
 /**
  * Get a user by Discord ID
@@ -130,6 +145,7 @@ async function updateUserLinks(discordId, collectionUrl, tradebinderUrl) {
 }
 
 module.exports = {
+  getDb,
   db,
   admin, // export admin so you can use FieldValue.serverTimestamp()
   getUser,
