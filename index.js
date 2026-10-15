@@ -18,6 +18,9 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once(Events.ClientReady, (readyClient) => {
 	console.log(`Ready! Logged in as ${readyClient.user.tag}`);
+	// Set by Heroku when "dyno metadata" is enabled (heroku labs:enable runtime-dyno-metadata)
+	if (process.env.HEROKU_SLUG_COMMIT) console.log(`Running commit ${process.env.HEROKU_SLUG_COMMIT.slice(0, 7)}`);
+	console.log(`In ${readyClient.guilds.cache.size} server(s): ${readyClient.guilds.cache.map((g) => g.name).join(', ')}`);
 });
 
 client.commands = new Collection();

@@ -137,7 +137,10 @@ const recordedThisRun = new Set();
  * @param {{id: string, name: string, iconURL: (options?: object) => string|null}|null} guild
  */
 async function recordActivity(user, guild) {
-  if (!guild) return; // used in a DM
+  if (!guild) {
+    console.log(`[servers] Not recording ${user.username}: the bot can't see a server for this interaction (DM, or the server isn't in its cache).`);
+    return;
+  }
   const key = `${user.id}:${guild.id}`;
   if (recordedThisRun.has(key)) return;
 
@@ -153,9 +156,14 @@ async function recordActivity(user, guild) {
       { merge: true }
     );
     recordedThisRun.add(key);
+    console.log(`[servers] Recorded "${guild.name}" (${guild.id}) for ${user.username}.`);
   } catch (err) {
     // 5 = NOT_FOUND: the user has no profile yet, so there is nothing to attach the server to
-    if (err.code !== 5) console.error('Failed to record server activity:', err);
+    if (err.code === 5) {
+      console.log(`[servers] Not recording ${user.username} (${user.id}): no profile document with that id.`);
+    } else {
+      console.error('Failed to record server activity:', err);
+    }
   }
 }
 
