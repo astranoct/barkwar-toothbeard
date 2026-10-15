@@ -1,12 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
-const { parseTradelist } = require('./helperFunctions/parseTradelist.js');
 // const config = require('./config.json');
 const config = process.env.CONFIG ? JSON.parse(process.env.CONFIG) : {};
 const token = config.token;
-// db/users.js initializes firebase-admin, so it must not be initialized again here.
-const { db, admin } = require('./db/users.js');
 
 if (!token) {
 	console.error('Missing Discord bot token. Set the CONFIG environment variable to JSON like {"token": "..."}.');
@@ -55,33 +52,27 @@ async function safeReply(interaction, content) {
 	}
 }
 
-async function handleUpdatelistModal(interaction) {
-	const discordId = interaction.user.id;
-	const listInput = interaction.fields.getTextInputValue('listInput');
-
-	try {
-		const { highPrio, lowPrio } = parseTradelist(listInput);
-
-		await db.collection('users').doc(discordId).update({
-			highPrio,
-			lowPrio,
-			updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-		});
-
-		await interaction.reply({
-			content: `✅ Your tradelist has been updated! Needs: ${highPrio.length}, Wants: ${lowPrio.length} cards.`,
-			flags: MessageFlags.Ephemeral,
-		});
-	} catch (err) {
-		console.error(err);
-		await safeReply(interaction, '❌ There was an error updating your tradelist. Please check your format and try again.');
-	}
-}
-
 client.on(Events.InteractionCreate, async (interaction) => {
+	// Modal submits go to the command that owns the modal (its `modalId` / `modalSubmit`)
 	if (interaction.isModalSubmit()) {
-		if (interaction.customId === 'updatelistModal') {
-			await handleUpdatelistModal(interaction);
+		const owner = client.commands.find((cmd) => cmd.modalId === interaction.customId);
+		if (!owner) return;
+		try {
+			await owner.modalSubmit(interaction);
+		} catch (error) {
+			console.error(error);
+			await safeReply(interaction, '❌ Something went wrong saving that. Please try again.');
+		}
+		return;
+	}
+
+	if (interaction.isAutocomplete()) {
+		const command = client.commands.get(interaction.commandName);
+		if (!command || !command.autocomplete) return;
+		try {
+			await command.autocomplete(interaction);
+		} catch (error) {
+			console.error(error);
 		}
 		return;
 	}

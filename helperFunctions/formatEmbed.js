@@ -1,13 +1,14 @@
-const { EmbedBuilder } = require('discord.js');
+﻿const { EmbedBuilder } = require('discord.js');
 
-const MAX_FIELD_LENGTH = 1024; // Discord embed field value limit
+const MAX_DESCRIPTION_LENGTH = 4096; // Discord embed description limit
 
 /**
- * Formats cards as Scryfall links, one per line, truncated to fit in an embed field.
+ * Formats cards as Scryfall links, one per line, truncated to fit in `limit` characters.
  * @param {string[]} cards
+ * @param {number} limit
  * @returns {string}
  */
-function formatCardList(cards) {
+function formatCardList(cards, limit = MAX_DESCRIPTION_LENGTH) {
   const lines = [];
   let length = 0;
 
@@ -21,7 +22,7 @@ function formatCardList(cards) {
 
     const remaining = cards.length - i;
     const moreNote = `\n…and ${remaining} more`;
-    if (length + line.length + 1 + moreNote.length > MAX_FIELD_LENGTH) {
+    if (length + line.length + 1 + moreNote.length > limit) {
       lines.push(`…and ${remaining} more`);
       break;
     }
@@ -35,39 +36,17 @@ function formatCardList(cards) {
 /**
  * Creates a tradelist embed for a user
  * @param {string} username
- * @param {Object} tradelist
- * @param {string[]} tradelist.highPrio
- * @param {string[]} tradelist.lowPrio
+ * @param {string[]} cards Cards the user is looking for
  * @param {string} deckUrl
  * @param {string} tradebinderUrl
  * @returns {EmbedBuilder}
  */
 function createTradelistEmbed(
   username,
-  tradelist,
+  cards,
   deckUrl = null,
   tradebinderUrl = null
 ) {
-  const fields = [];
-  const highPrio = tradelist.highPrio || [];
-  const lowPrio = tradelist.lowPrio || [];
-
-  if (highPrio.length) {
-    fields.push({
-      name: 'Needs',
-      value: formatCardList(highPrio),
-      inline: true,
-    });
-  }
-
-  if (lowPrio.length) {
-    fields.push({
-      name: 'Wants',
-      value: formatCardList(lowPrio),
-      inline: true,
-    });
-  }
-
   const links = [];
 
   if (deckUrl) {
@@ -80,8 +59,9 @@ function createTradelistEmbed(
 
   const embed = new EmbedBuilder()
     .setColor(0xff69b4)
-    .setTitle(`${username}'s Trade Card`)
+    .setTitle(`${username} is looking for (${cards.length})`)
     .setThumbnail('https://i.imgur.com/JEStEX3.png')
+    .setDescription(cards.length ? formatCardList(cards) : 'No cards listed yet. Use /addcards to add some.')
     .setTimestamp()
     .setFooter({
       text: username,
@@ -89,11 +69,7 @@ function createTradelistEmbed(
     });
 
   if (links.length) {
-    embed.setDescription(links.join(' • '));
-  }
-
-  if (fields.length) {
-    embed.addFields(fields);
+    embed.addFields({ name: 'Links', value: links.join(' • ') });
   }
 
   return embed;

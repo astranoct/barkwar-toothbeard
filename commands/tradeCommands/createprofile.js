@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+﻿const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUser, createUser } = require('../../db/users.js');
 const { validateUrl } = require('../../helperFunctions/validateUrl.js');
 
@@ -26,7 +26,7 @@ module.exports = {
 
     if ((rawCollection && !collectionUrl) || (rawTradebinder && !tradebinderUrl)) {
       await interaction.reply({
-        content: '⚠️ Links must be valid http(s) URLs, e.g. https://example.com/my-collection.',
+        content: 'âš ï¸ Links must be valid http(s) URLs, e.g. https://example.com/my-collection.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -37,7 +37,7 @@ module.exports = {
 
       if (existingUser) {
         await interaction.reply({
-          content: 'ℹ️ You already have a profile. Use /tradelist to view it or /updatelist to update your seeking list.',
+          content: 'â„¹ï¸ You already have a profile. Use /tradelist to view it or /addcards to add cards to it.',
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -47,13 +47,13 @@ module.exports = {
 
       if (created) {
         await interaction.reply({
-          content: '✅ Your profile has been created! You can now use /updatelist to upload your seeking list and /tradelist to share it with others.',
+          content: 'âœ… Your profile has been created! Use /addcards to build your list of wanted cards and /tradelist to share it with others.',
           flags: MessageFlags.Ephemeral,
         });
       } else {
         // This case should rarely happen
         await interaction.reply({
-          content: '⚠️ Could not create your profile. Please try again.',
+          content: 'âš ï¸ Could not create your profile. Please try again.',
           flags: MessageFlags.Ephemeral,
         });
       }
