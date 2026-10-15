@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { getUser, addCards } = require('../../db/users.js');
 const { parseCardList } = require('../../helperFunctions/parseCardList.js');
+const { verifyCards, describeInvalid } = require('../../helperFunctions/scryfall.js');
 
 const MODAL_ID = 'addcardsModal';
 
@@ -20,8 +21,8 @@ module.exports = {
     const quick = interaction.options.getString('cards');
 
     if (quick) {
-      const result = await addCards(interaction.user.id, parseCardList(quick.split(';').join('\n')));
-      await replyWithResult(interaction, result);
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }); // Scryfall lookup can exceed 3s
+      await addAndReply(interaction, parseCardList(quick.split(';').join('\n')));
       return;
     }
 
@@ -50,20 +51,31 @@ module.exports = {
   },
 
   async modalSubmit(interaction) {
-    const cards = parseCardList(interaction.fields.getTextInputValue('cardsInput'));
-    const result = await addCards(interaction.user.id, cards);
-    await replyWithResult(interaction, result);
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await addAndReply(interaction, parseCardList(interaction.fields.getTextInputValue('cardsInput')));
   },
 };
 
-async function replyWithResult(interaction, result) {
-  let content;
+/** Checks names with Scryfall, adds the real ones, and reports what happened. Interaction must be deferred. */
+async function addAndReply(interaction, names) {
+  const { valid, invalid, unverified } = await verifyCards(names);
+  const result = await addCards(interaction.user.id, valid);
+
+  const parts = [];
   if (!result) {
-    content = '❌ You need to create a profile first using `/createprofile`.';
+    parts.push('❌ You need to create a profile first using `/createprofile`.');
   } else if (!result.added.length) {
-    content = 'ℹ️ Those cards are already on your list (or nothing was entered).';
+    parts.push('ℹ️ Nothing new to add: those cards are already on your list (or none were valid).');
   } else {
-    content = `✅ Added ${result.added.length} card${result.added.length === 1 ? '' : 's'} (${result.added.join(', ')}). You now have ${result.total} on your list.`;
+    parts.push(`✅ Added ${result.added.length} card${result.added.length === 1 ? '' : 's'} (${result.added.join(', ')}). You now have ${result.total} on your list.`);
   }
-  await interaction.reply({ content: content.slice(0, 2000), flags: MessageFlags.Ephemeral });
+
+  if (invalid.length) {
+    parts.push(`⚠️ Couldn't find these on Scryfall, so I skipped them:\n${describeInvalid(invalid)}`);
+  }
+  if (unverified) {
+    parts.push("ℹ️ Scryfall couldn't be reached, so card names weren't checked this time.");
+  }
+
+  await interaction.editReply({ content: parts.join('\n\n').slice(0, 2000) });
 }

@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { getUser, setCards } = require('../../db/users.js');
 const { parseCardList } = require('../../helperFunctions/parseCardList.js');
+const { verifyCards, describeInvalid } = require('../../helperFunctions/scryfall.js');
 
 const MODAL_ID = 'updatelistModal';
 const MAX_MODAL_TEXT = 4000; // Discord's limit for a paragraph text input
@@ -51,14 +52,24 @@ module.exports = {
   },
 
   async modalSubmit(interaction) {
-    const cards = parseCardList(interaction.fields.getTextInputValue('listInput'));
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral }); // Scryfall lookup can exceed 3s
+
+    const names = parseCardList(interaction.fields.getTextInputValue('listInput'));
+    const { valid: cards, invalid, unverified } = await verifyCards(names);
     await setCards(interaction.user.id, cards);
 
-    await interaction.reply({
-      content: cards.length
+    const parts = [
+      cards.length
         ? `✅ Your list has been saved with ${cards.length} card${cards.length === 1 ? '' : 's'}.`
         : '✅ Your list has been cleared.',
-      flags: MessageFlags.Ephemeral,
-    });
+    ];
+    if (invalid.length) {
+      parts.push(`⚠️ Couldn't find these on Scryfall, so they were left off. Fix the spelling and use \`/addcards\`:\n${describeInvalid(invalid)}`);
+    }
+    if (unverified) {
+      parts.push("ℹ️ Scryfall couldn't be reached, so card names weren't checked this time.");
+    }
+
+    await interaction.editReply({ content: parts.join('\n\n').slice(0, 2000) });
   },
 };
